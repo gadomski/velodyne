@@ -1,5 +1,6 @@
 use std::path::Path;
 use Result;
+use pcap::{self, Capture};
 
 pub enum Packet {
     Data,
@@ -16,7 +17,24 @@ impl Packet {
     /// let packets = Packet::from_pcap_path("data/single.pcap").unwrap();
     /// ```
     pub fn from_pcap_path<P: AsRef<Path>>(path: P) -> Result<Vec<Packet>> {
-        unimplemented!()
+        let mut capture = Capture::from_file(path)?;
+        let mut packets = Vec::new();
+        loop {
+            match capture.next() {
+                Ok(packet) => packets.push(Packet::from_pcap_packet(packet)?),
+                Err(err) => {
+                    match err {
+                        pcap::Error::NoMorePackets => break,
+                        _ => return Err(err.into()),
+                    }
+                }
+            }
+        }
+        Ok(packets)
+    }
+
+    fn from_pcap_packet(packet: pcap::Packet) -> Result<Packet> {
+        Ok(Packet::Data)
     }
 }
 
