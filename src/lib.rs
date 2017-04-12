@@ -11,7 +11,7 @@ extern crate byteorder;
 extern crate chrono;
 extern crate pcap;
 
-mod packet;
+pub mod packet;
 
 pub use packet::Packet;
 

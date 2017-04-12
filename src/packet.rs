@@ -1,3 +1,5 @@
+//! Velodyne data is transmitted directly over the wire, and is often saved in pcap format.
+
 use {Error, Result};
 use byteorder::{ReadBytesExt, LittleEndian};
 use chrono::Duration;
@@ -35,29 +37,53 @@ pub enum Packet {
     },
 }
 
+/// A block of laser measurements.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct DataBlock {
+    /// The reported azimuth assocaited with the first laser shot.
+    ///
+    /// This value often needs to be interpolated for the second set of data records.
     pub azimuth: f32,
+    /// Two sets of sixteen data records.
+    ///
+    /// Each laser has it's value recorded twice in each data block.
     pub data_records: [[DataRecord; NUM_DATA_RECORDS]; 2],
 }
 
+/// A measurement of range and reflectivity.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct DataRecord {
+    /// The distance of the reflective object.
     pub return_distance: f32,
+    /// The calibrated reflectivity.
+    ///
+    /// A black, absorbent diffuse reflector is zero. A white, reflective diffuse reflector is 100.
+    /// A retro-reflector covered with a semi-transparent white surface is 101. A retro-reflector
+    /// without any coverage is 255.
     pub calibrated_reflectivity: u8,
 }
 
+/// The modes by which the instrument can report reutrns.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ReturnMode {
+    /// The strongest return by light energy.
     StrongestReturn,
+    /// The last return for that laser pulse.
     LastReturn,
+    /// The strongest return and the last return.
+    ///
+    /// If the last return is the strongest, returns the second-strongest return and the last
+    /// return.
     DualReturn,
 }
 
+/// The sensor that produced the data.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[allow(non_camel_case_types)]
 pub enum Sensor {
+    /// HDL-32E.
     HDL_32E,
+    /// VLP-16.
     VLP_16,
 }
 
@@ -67,7 +93,7 @@ impl Packet {
     /// # Examples
     ///
     /// ```
-    /// # use vlp::Packet;
+    /// # use velodyne::Packet;
     /// let packets = Packet::from_pcap_path("data/single.pcap").unwrap();
     /// ```
     pub fn from_pcap_path<P: AsRef<Path>>(path: P) -> Result<Vec<Packet>> {
@@ -91,7 +117,7 @@ impl Packet {
     /// # Examples
     ///
     /// ```
-    /// # use vlp::Packet;
+    /// # use velodyne::Packet;
     /// let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
     /// assert!(packet.data_blocks().is_some());
     /// let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
@@ -109,7 +135,7 @@ impl Packet {
     /// # Examples
     ///
     /// ```
-    /// # use vlp::Packet;
+    /// # use velodyne::Packet;
     /// let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
     /// let timestamp = packet.timestamp();
     /// let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
@@ -127,7 +153,7 @@ impl Packet {
     /// # Examples
     ///
     /// ```
-    /// # use vlp::Packet;
+    /// # use velodyne::Packet;
     /// let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
     /// assert!(packet.return_mode().is_some());
     /// let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
@@ -145,7 +171,7 @@ impl Packet {
     /// # Examples
     ///
     /// ```
-    /// # use vlp::Packet;
+    /// # use velodyne::Packet;
     /// let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
     /// assert!(packet.sensor().is_some());
     /// let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
@@ -163,7 +189,7 @@ impl Packet {
     /// # Examples
     ///
     /// ```
-    /// # use vlp::Packet;
+    /// # use velodyne::Packet;
     /// let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
     /// assert!(packet.nmea().is_none());
     /// let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
