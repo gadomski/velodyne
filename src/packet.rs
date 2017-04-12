@@ -12,7 +12,7 @@ const NUM_DATA_RECORDS: usize = 16;
 const PACKET_HEADER_LEN: usize = 42;
 const START_IDENTIFIER: u16 = 0xeeff;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum Packet {
     Data {
         data_blocks: [DataBlock; NUM_DATA_BLOCKS],
@@ -20,7 +20,7 @@ pub enum Packet {
         return_mode: ReturnMode,
         sensor: Sensor,
     },
-    Position { timestamp: Duration },
+    Position { timestamp: Duration, nmea: String },
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -43,6 +43,7 @@ pub enum ReturnMode {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[allow(non_camel_case_types)]
 pub enum Sensor {
     HDL_32E,
     VLP_16,
@@ -141,6 +142,23 @@ impl Packet {
         }
     }
 
+    /// Returns this packet's NMEA string, or none if it's a data packet.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
+    /// assert!(packet.nmea().is_none());
+    /// let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
+    /// assert!(packet.nmea().is_some());
+    /// ```
+    pub fn nmea(&self) -> Option<&str> {
+        match *self {
+            Packet::Data { .. } => None,
+            Packet::Position { ref nmea, .. } => Some(nmea),
+        }
+    }
+
     fn from_pcap_packet(packet: pcap::Packet) -> Result<Packet> {
         if packet.data[PACKET_HEADER_LEN..PACKET_HEADER_LEN + 198].iter().all(|&n| n == 0) &&
            &packet.data[PACKET_HEADER_LEN + 206..PACKET_HEADER_LEN + 212] == b"$GPRMC" {
@@ -153,7 +171,13 @@ impl Packet {
     fn position_from_pcap_packet(packet: pcap::Packet) -> Result<Packet> {
         let mut cursor = Cursor::new(&packet.data[PACKET_HEADER_LEN + 198..]);
         let timestamp = Duration::microseconds(cursor.read_u32::<LittleEndian>()? as i64);
-        Ok(Packet::Position { timestamp: timestamp })
+        let mut nmea = String::new();
+        cursor.set_position(8);
+        cursor.take(72).read_to_string(&mut nmea)?;
+        Ok(Packet::Position {
+               timestamp: timestamp,
+               nmea: nmea,
+           })
     }
 
     fn data_from_pcap_packet(packet: pcap::Packet) -> Result<Packet> {
@@ -267,5 +291,7 @@ mod tests {
     fn position() {
         let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
         assert_eq!(Duration::microseconds(2467110195), packet.timestamp());
+        assert_eq!("$GPRMC,214106,A,3707.8178,N,12139.2690,W,010.3,188.2,230715,013.8,E,D*05",
+                   packet.nmea().unwrap());
     }
 }
