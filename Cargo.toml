@@ -4,4 +4,5 @@ version = "0.1.0"
 authors = ["Pete Gadomski <pete.gadomski@gmail.com>"]
 
 [dependencies]
+byteorder = "1.0"
 pcap = "0.5"
