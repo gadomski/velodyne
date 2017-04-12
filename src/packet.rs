@@ -1,6 +1,6 @@
 //! Velodyne data is transmitted directly over the wire, and is often saved in pcap format.
 
-use {Error, Result};
+use {Error, Result, NUM_LASERS};
 use byteorder::{ReadBytesExt, LittleEndian};
 use chrono::Duration;
 use pcap::{self, Capture};
@@ -10,7 +10,6 @@ use std::path::Path;
 const AZIMUTH_SCALE_FACTOR: f32 = 100.;
 const DISTANCE_SCALE_FACTOR: f32 = 0.002;
 const NUM_DATA_BLOCKS: usize = 12;
-const NUM_DATA_RECORDS: usize = 16;
 const PACKET_HEADER_LEN: usize = 42;
 const START_IDENTIFIER: u16 = 0xeeff;
 
@@ -47,7 +46,7 @@ pub struct DataBlock {
     /// Two sets of sixteen data records.
     ///
     /// Each laser has it's value recorded twice in each data block.
-    pub data_records: [[DataRecord; NUM_DATA_RECORDS]; 2],
+    pub data_records: [[DataRecord; NUM_LASERS]; 2],
 }
 
 /// A measurement of range and reflectivity.
@@ -248,7 +247,7 @@ impl DataBlock {
             return Err(Error::InvalidStartIdentifier(start_identifier));
         }
         let azimuth = read.read_u16::<LittleEndian>()? as f32 / AZIMUTH_SCALE_FACTOR;
-        let mut data_records: [[DataRecord; NUM_DATA_RECORDS]; 2] = Default::default();
+        let mut data_records: [[DataRecord; NUM_LASERS]; 2] = Default::default();
         for data_set in &mut data_records {
             for mut data_record in data_set {
                 *data_record = DataRecord::read_from(&mut read)?;

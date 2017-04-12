@@ -12,6 +12,7 @@ extern crate chrono;
 extern crate pcap;
 
 pub mod packet;
+mod timing;
 
 pub use packet::Packet;
 
@@ -44,3 +45,6 @@ impl From<pcap::Error> for Error {
 
 /// Our crate-specific result type.
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// The number of lasers on the instrument.
+pub const NUM_LASERS: usize = 16;
