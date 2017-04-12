@@ -1,9 +1,9 @@
+use {Error, Result};
+use byteorder::{ReadBytesExt, LittleEndian};
+use chrono::Duration;
+use pcap::{self, Capture};
 use std::io::{Cursor, Read};
 use std::path::Path;
-use chrono::Duration;
-use {Error, Result};
-use pcap::{self, Capture};
-use byteorder::{ReadBytesExt, LittleEndian};
 
 const AZIMUTH_SCALE_FACTOR: f32 = 100.;
 const DISTANCE_SCALE_FACTOR: f32 = 0.002;
