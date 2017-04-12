@@ -12,15 +12,27 @@ const NUM_DATA_RECORDS: usize = 16;
 const PACKET_HEADER_LEN: usize = 42;
 const START_IDENTIFIER: u16 = 0xeeff;
 
+/// A Velodyne information packet.
 #[derive(Clone, Debug)]
 pub enum Packet {
+    /// Data packets contain laser range measurements.
     Data {
+        /// A fixed-size array of data blocks.
         data_blocks: [DataBlock; NUM_DATA_BLOCKS],
+        /// The duration from the top of the hour to the first laser firing in the packet.
         timestamp: Duration,
+        /// The return mode of the sensor.
         return_mode: ReturnMode,
+        /// The sensor type.
         sensor: Sensor,
     },
-    Position { timestamp: Duration, nmea: String },
+    /// A position measurement, really just an echoing of information from a GNSS system.
+    Position {
+        /// The duration from the top of the hour that the NMEA string was received.
+        timestamp: Duration,
+        /// The NMA $GPRMC message as received from an external GNSS system.
+        nmea: String,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Default)]
