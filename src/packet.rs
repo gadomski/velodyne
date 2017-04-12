@@ -18,7 +18,7 @@ pub enum Packet {
     /// Data packets contain laser range measurements.
     Data {
         /// A fixed-size array of data blocks.
-        data_blocks: [DataBlock; NUM_DATA_BLOCKS],
+        data_blocks: Box<[DataBlock; NUM_DATA_BLOCKS]>,
         /// The duration from the top of the hour to the first laser firing in the packet.
         timestamp: Duration,
         /// The return mode of the sensor.
@@ -99,7 +99,7 @@ impl Packet {
     /// ```
     pub fn data_blocks(&self) -> Option<[DataBlock; 12]> {
         match *self {
-            Packet::Data { data_blocks, .. } => Some(data_blocks),
+            Packet::Data { ref data_blocks, .. } => Some(**data_blocks),
             Packet::Position { .. } => None,
         }
     }
@@ -117,7 +117,7 @@ impl Packet {
     /// ```
     pub fn timestamp(&self) -> Duration {
         match *self {
-            Packet::Data { timestamp, .. } => timestamp,
+            Packet::Data { timestamp, .. } |
             Packet::Position { timestamp, .. } => timestamp,
         }
     }
@@ -207,7 +207,7 @@ impl Packet {
         let return_mode = ReturnMode::from_u8(cursor.read_u8()?)?;
         let sensor = Sensor::from_u8(cursor.read_u8()?)?;
         Ok(Packet::Data {
-               data_blocks: data_blocks,
+               data_blocks: Box::new(data_blocks),
                timestamp: timestamp,
                return_mode: return_mode,
                sensor: sensor,
