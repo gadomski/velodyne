@@ -144,5 +144,8 @@ mod tests {
             .unwrap()
             [0];
         assert_eq!(229.7, data_block.azimuth);
+        let data_record = data_block.data_records[0][0];
+        assert_eq!(6.524, data_record.return_distance);
+        assert_eq!(4, data_record.calibrated_reflectivity);
     }
 }
