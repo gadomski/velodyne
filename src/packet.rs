@@ -20,7 +20,7 @@ pub enum Packet {
         return_mode: ReturnMode,
         sensor: Sensor,
     },
-    Position,
+    Position { timestamp: Duration },
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -86,7 +86,7 @@ impl Packet {
     pub fn data_blocks(&self) -> Option<[DataBlock; 12]> {
         match *self {
             Packet::Data { data_blocks, .. } => Some(data_blocks),
-            Packet::Position => None,
+            Packet::Position { .. } => None,
         }
     }
 
@@ -103,7 +103,7 @@ impl Packet {
     pub fn timestamp(&self) -> Duration {
         match *self {
             Packet::Data { timestamp, .. } => timestamp,
-            Packet::Position => unimplemented!(),
+            Packet::Position { timestamp, .. } => timestamp,
         }
     }
 
@@ -120,7 +120,7 @@ impl Packet {
     pub fn return_mode(&self) -> Option<ReturnMode> {
         match *self {
             Packet::Data { return_mode, .. } => Some(return_mode),
-            Packet::Position => None,
+            Packet::Position { .. } => None,
         }
     }
 
@@ -137,11 +137,26 @@ impl Packet {
     pub fn sensor(&self) -> Option<Sensor> {
         match *self {
             Packet::Data { sensor, .. } => Some(sensor),
-            Packet::Position => None,
+            Packet::Position { .. } => None,
         }
     }
 
     fn from_pcap_packet(packet: pcap::Packet) -> Result<Packet> {
+        if packet.data[PACKET_HEADER_LEN..PACKET_HEADER_LEN + 198].iter().all(|&n| n == 0) &&
+           &packet.data[PACKET_HEADER_LEN + 206..PACKET_HEADER_LEN + 212] == b"$GPRMC" {
+            Packet::position_from_pcap_packet(packet)
+        } else {
+            Packet::data_from_pcap_packet(packet)
+        }
+    }
+
+    fn position_from_pcap_packet(packet: pcap::Packet) -> Result<Packet> {
+        let mut cursor = Cursor::new(&packet.data[PACKET_HEADER_LEN + 198..]);
+        let timestamp = Duration::microseconds(cursor.read_u32::<LittleEndian>()? as i64);
+        Ok(Packet::Position { timestamp: timestamp })
+    }
+
+    fn data_from_pcap_packet(packet: pcap::Packet) -> Result<Packet> {
         let mut data_blocks: [DataBlock; NUM_DATA_BLOCKS] = Default::default();
         let mut cursor = Cursor::new(&packet.data[PACKET_HEADER_LEN..]);
         for mut data_block in &mut data_blocks {
@@ -246,5 +261,11 @@ mod tests {
         assert_eq!(Duration::microseconds(2467108343), packet.timestamp());
         assert_eq!(ReturnMode::StrongestReturn, packet.return_mode().unwrap());
         assert_eq!(Sensor::VLP_16, packet.sensor().unwrap());
+    }
+
+    #[test]
+    fn position() {
+        let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
+        assert_eq!(Duration::microseconds(2467110195), packet.timestamp());
     }
 }
