@@ -79,6 +79,7 @@ impl Packet {
     /// # Examples
     ///
     /// ```
+    /// # use vlp::Packet;
     /// let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
     /// assert!(packet.data_blocks().is_some());
     /// let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
@@ -96,10 +97,11 @@ impl Packet {
     /// # Examples
     ///
     /// ```
+    /// # use vlp::Packet;
     /// let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
-    /// assert_eq!(2467108343, packet.timestamp());
+    /// let timestamp = packet.timestamp();
     /// let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
-    /// unimplemented!()
+    /// let timestamp = packet.timestamp();
     /// ```
     pub fn timestamp(&self) -> Duration {
         match *self {
@@ -113,6 +115,7 @@ impl Packet {
     /// # Examples
     ///
     /// ```
+    /// # use vlp::Packet;
     /// let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
     /// assert!(packet.return_mode().is_some());
     /// let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
@@ -130,6 +133,7 @@ impl Packet {
     /// # Examples
     ///
     /// ```
+    /// # use vlp::Packet;
     /// let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
     /// assert!(packet.sensor().is_some());
     /// let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
@@ -147,6 +151,7 @@ impl Packet {
     /// # Examples
     ///
     /// ```
+    /// # use vlp::Packet;
     /// let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
     /// assert!(packet.nmea().is_none());
     /// let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
