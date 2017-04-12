@@ -1,5 +1,6 @@
 use std::io::{Cursor, Read};
 use std::path::Path;
+use chrono::Duration;
 use {Error, Result};
 use pcap::{self, Capture};
 use byteorder::{ReadBytesExt, LittleEndian};
@@ -15,21 +16,21 @@ const START_IDENTIFIER: u16 = 0xeeff;
 pub enum Packet {
     Data {
         data_blocks: [DataBlock; NUM_DATA_BLOCKS],
-        timestamp: u32,
+        timestamp: Duration,
     },
     Position,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct DataBlock {
-    azimuth: f32,
-    data_records: [[DataRecord; 16]; 2],
+    pub azimuth: f32,
+    pub data_records: [[DataRecord; NUM_DATA_RECORDS]; 2],
 }
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct DataRecord {
-    return_distance: f32,
-    calibrated_reflectivity: u8,
+    pub return_distance: f32,
+    pub calibrated_reflectivity: u8,
 }
 
 impl Packet {
@@ -48,14 +49,13 @@ impl Packet {
             match capture.next() {
                 Ok(packet) => packets.push(Packet::from_pcap_packet(packet)?),
                 Err(err) => {
-                    match err {
-                        pcap::Error::NoMorePackets => break,
-                        _ => return Err(err.into()),
-                    }
+                    return match err {
+                               pcap::Error::NoMorePackets => Ok(packets),
+                               _ => Err(err.into()),
+                           };
                 }
             }
         }
-        Ok(packets)
     }
 
     /// Returns this packet's data blocks, or none if it is a position packet.
@@ -75,13 +75,30 @@ impl Packet {
         }
     }
 
+    /// Returns this packet's timestamp.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
+    /// assert_eq!(2467108343, packet.timestamp());
+    /// let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
+    /// unimplemented!()
+    /// ```
+    pub fn timestamp(&self) -> Duration {
+        match *self {
+            Packet::Data { data_blocks: _, timestamp } => timestamp,
+            Packet::Position => unimplemented!(),
+        }
+    }
+
     fn from_pcap_packet(packet: pcap::Packet) -> Result<Packet> {
         let mut data_blocks: [DataBlock; NUM_DATA_BLOCKS] = Default::default();
         let mut cursor = Cursor::new(&packet.data[PACKET_HEADER_LEN..]);
         for mut data_block in &mut data_blocks {
             *data_block = DataBlock::read_from(&mut cursor)?;
         }
-        let timestamp = 0;
+        let timestamp = Duration::microseconds(cursor.read_u32::<LittleEndian>()? as i64);
         Ok(Packet::Data {
                data_blocks: data_blocks,
                timestamp: timestamp,
@@ -147,5 +164,11 @@ mod tests {
         let data_record = data_block.data_records[0][0];
         assert_eq!(6.524, data_record.return_distance);
         assert_eq!(4, data_record.calibrated_reflectivity);
+    }
+
+    #[test]
+    fn data_metadata() {
+        let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
+        assert_eq!(Duration::microseconds(2467108343), packet.timestamp());
     }
 }
