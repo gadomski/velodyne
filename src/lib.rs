@@ -8,7 +8,9 @@ pub use packet::Packet;
 
 #[derive(Debug)]
 pub enum Error {
+    InvalidSensor(u8),
     InvalidStartIdentifier(u16),
+    InvalidReturnMode(u8),
     Io(std::io::Error),
     Pcap(pcap::Error),
 }

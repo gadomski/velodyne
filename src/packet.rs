@@ -17,6 +17,8 @@ pub enum Packet {
     Data {
         data_blocks: [DataBlock; NUM_DATA_BLOCKS],
         timestamp: Duration,
+        return_mode: ReturnMode,
+        sensor: Sensor,
     },
     Position,
 }
@@ -31,6 +33,19 @@ pub struct DataBlock {
 pub struct DataRecord {
     pub return_distance: f32,
     pub calibrated_reflectivity: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ReturnMode {
+    StrongestReturn,
+    LastReturn,
+    DualReturn,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Sensor {
+    HDL_32E,
+    VLP_16,
 }
 
 impl Packet {
@@ -87,8 +102,42 @@ impl Packet {
     /// ```
     pub fn timestamp(&self) -> Duration {
         match *self {
-            Packet::Data { data_blocks: _, timestamp } => timestamp,
+            Packet::Data { timestamp, .. } => timestamp,
             Packet::Position => unimplemented!(),
+        }
+    }
+
+    /// Returns this packet's return mode, or none if it's a position packet.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
+    /// assert!(packet.return_mode().is_some());
+    /// let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
+    /// assert!(packet.return_mode().is_none());
+    /// ```
+    pub fn return_mode(&self) -> Option<ReturnMode> {
+        match *self {
+            Packet::Data { return_mode, .. } => Some(return_mode),
+            Packet::Position => None,
+        }
+    }
+
+    /// Returns this packet's sensor, or none if it's a position packet.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
+    /// assert!(packet.sensor().is_some());
+    /// let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
+    /// assert!(packet.sensor().is_none());
+    /// ```
+    pub fn sensor(&self) -> Option<Sensor> {
+        match *self {
+            Packet::Data { sensor, .. } => Some(sensor),
+            Packet::Position => None,
         }
     }
 
@@ -99,9 +148,13 @@ impl Packet {
             *data_block = DataBlock::read_from(&mut cursor)?;
         }
         let timestamp = Duration::microseconds(cursor.read_u32::<LittleEndian>()? as i64);
+        let return_mode = ReturnMode::from_u8(cursor.read_u8()?)?;
+        let sensor = Sensor::from_u8(cursor.read_u8()?)?;
         Ok(Packet::Data {
                data_blocks: data_blocks,
                timestamp: timestamp,
+               return_mode: return_mode,
+               sensor: sensor,
            })
     }
 }
@@ -132,6 +185,27 @@ impl DataRecord {
                return_distance: read.read_u16::<LittleEndian>()? as f32 * DISTANCE_SCALE_FACTOR,
                calibrated_reflectivity: read.read_u8()?,
            })
+    }
+}
+
+impl ReturnMode {
+    fn from_u8(n: u8) -> Result<ReturnMode> {
+        match n {
+            0x37 => Ok(ReturnMode::StrongestReturn),
+            0x38 => Ok(ReturnMode::LastReturn),
+            0x39 => Ok(ReturnMode::DualReturn),
+            _ => Err(Error::InvalidReturnMode(n)),
+        }
+    }
+}
+
+impl Sensor {
+    fn from_u8(n: u8) -> Result<Sensor> {
+        match n {
+            0x21 => Ok(Sensor::HDL_32E),
+            0x22 => Ok(Sensor::VLP_16),
+            _ => Err(Error::InvalidSensor(n)),
+        }
     }
 }
 
@@ -170,5 +244,7 @@ mod tests {
     fn data_metadata() {
         let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
         assert_eq!(Duration::microseconds(2467108343), packet.timestamp());
+        assert_eq!(ReturnMode::StrongestReturn, packet.return_mode().unwrap());
+        assert_eq!(Sensor::VLP_16, packet.sensor().unwrap());
     }
 }
