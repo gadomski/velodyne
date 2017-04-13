@@ -1,4 +1,6 @@
-//! Read data from Velodyne VLP-16 and HDL-32E sensors.
+//! Read data from Velodyne LiDAR sensors.
+//!
+//! As of now, only supports the VLP-16.
 
 #![deny(missing_docs,
         missing_debug_implementations, missing_copy_implementations,
@@ -11,10 +13,12 @@ extern crate byteorder;
 extern crate chrono;
 extern crate pcap;
 
-pub mod packet;
-mod timing;
+pub mod vlp_16;
+pub mod io;
+pub mod fixtures;
+pub mod point;
 
-pub use packet::Packet;
+pub use point::Point;
 
 /// Our crate-specific error enum.
 #[derive(Debug)]
@@ -45,6 +49,3 @@ impl From<pcap::Error> for Error {
 
 /// Our crate-specific result type.
 pub type Result<T> = std::result::Result<T, Error>;
-
-/// The number of lasers on the instrument.
-pub const NUM_LASERS: usize = 16;

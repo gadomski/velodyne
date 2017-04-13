@@ -1,14 +1,15 @@
-//! Velodyne data is transmitted directly over the wire, and is often saved in pcap format.
+//! Velodyne Puck 16.
 
-use {Error, Result, NUM_LASERS};
+use {Error, Result, Point};
 use byteorder::{ReadBytesExt, LittleEndian};
 use chrono::Duration;
-use pcap::{self, Capture};
+use point::{Azimuth, Time, ReturnType};
+use std::f32;
 use std::io::{Cursor, Read};
-use std::path::Path;
 
 const AZIMUTH_SCALE_FACTOR: f32 = 100.;
 const DISTANCE_SCALE_FACTOR: f32 = 0.002;
+const NUM_LASERS: usize = 16;
 const NUM_DATA_BLOCKS: usize = 12;
 const PACKET_HEADER_LEN: usize = 42;
 const START_IDENTIFIER: u16 = 0xeeff;
@@ -87,41 +88,55 @@ pub enum Sensor {
 }
 
 impl Packet {
-    /// Reads one or more packets from a pcap file, as specified by its path.
+    /// Creates a new packet from bytes.
     ///
     /// # Examples
     ///
     /// ```
-    /// # use velodyne::Packet;
-    /// let packets = Packet::from_pcap_path("data/single.pcap").unwrap();
+    /// # use velodyne::vlp_16::Packet;
+    /// use velodyne::fixtures::VLP_16_DATA_PACKET;
+    /// let packet = Packet::new(&VLP_16_DATA_PACKET).unwrap();
     /// ```
-    pub fn from_pcap_path<P: AsRef<Path>>(path: P) -> Result<Vec<Packet>> {
-        let mut capture = Capture::from_file(path)?;
-        let mut packets = Vec::new();
-        loop {
-            match capture.next() {
-                Ok(packet) => packets.push(Packet::from_pcap_packet(packet)?),
-                Err(err) => {
-                    return match err {
-                               pcap::Error::NoMorePackets => Ok(packets),
-                               _ => Err(err.into()),
-                           };
-                }
-            }
+    pub fn new(bytes: &[u8]) -> Result<Packet> {
+        if &bytes[248..254] == b"$GPRMC" {
+            Packet::new_position(bytes)
+        } else {
+            Packet::new_data(bytes)
         }
     }
 
-    /// Returns this packet's data blocks, or none if it is a position packet.
+    /// Returns true if this is a data packet.
     ///
     /// # Examples
     ///
     /// ```
-    /// # use velodyne::Packet;
-    /// let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
-    /// assert!(packet.data_blocks().is_some());
-    /// let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
-    /// assert!(packet.data_blocks().is_none());
+    /// # use velodyne::vlp_16::Packet;
+    /// use velodyne::fixtures::{VLP_16_DATA_PACKET, VLP_16_POSITION_PACKET};
+    /// assert!(Packet::new(&VLP_16_DATA_PACKET).unwrap().is_data());
+    /// assert!(!Packet::new(&VLP_16_POSITION_PACKET).unwrap().is_data());
     /// ```
+    pub fn is_data(&self) -> bool {
+        match *self {
+            Packet::Data { .. } => true,
+            Packet::Position { .. } => false,
+        }
+    }
+
+    /// Returns true if this is a position packet.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use velodyne::vlp_16::Packet;
+    /// use velodyne::fixtures::{VLP_16_DATA_PACKET, VLP_16_POSITION_PACKET};
+    /// assert!(!Packet::new(&VLP_16_DATA_PACKET).unwrap().is_position());
+    /// assert!(Packet::new(&VLP_16_POSITION_PACKET).unwrap().is_position());
+    /// ```
+    pub fn is_position(&self) -> bool {
+        !self.is_data()
+    }
+
+    /// Returns this packet's data blocks, or none if it is a position packet.
     pub fn data_blocks(&self) -> Option<[DataBlock; 12]> {
         match *self {
             Packet::Data { ref data_blocks, .. } => Some(**data_blocks),
@@ -131,13 +146,14 @@ impl Packet {
 
     /// Returns this packet's timestamp.
     ///
+    /// A timestamp is a duration from the last UTC hour.
+    ///
     /// # Examples
     ///
     /// ```
-    /// # use velodyne::Packet;
-    /// let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
-    /// let timestamp = packet.timestamp();
-    /// let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
+    /// # use velodyne::vlp_16::Packet;
+    /// # use velodyne::fixtures::VLP_16_DATA_PACKET;
+    /// let packet = Packet::new(&VLP_16_DATA_PACKET).unwrap();
     /// let timestamp = packet.timestamp();
     /// ```
     pub fn timestamp(&self) -> Duration {
@@ -152,11 +168,10 @@ impl Packet {
     /// # Examples
     ///
     /// ```
-    /// # use velodyne::Packet;
-    /// let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
-    /// assert!(packet.return_mode().is_some());
-    /// let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
-    /// assert!(packet.return_mode().is_none());
+    /// # use velodyne::vlp_16::Packet;
+    /// # use velodyne::fixtures::VLP_16_DATA_PACKET;
+    /// let packet = Packet::new(&VLP_16_DATA_PACKET).unwrap();
+    /// let return_mode = packet.return_mode().unwrap();
     /// ```
     pub fn return_mode(&self) -> Option<ReturnMode> {
         match *self {
@@ -170,11 +185,10 @@ impl Packet {
     /// # Examples
     ///
     /// ```
-    /// # use velodyne::Packet;
-    /// let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
-    /// assert!(packet.sensor().is_some());
-    /// let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
-    /// assert!(packet.sensor().is_none());
+    /// # use velodyne::vlp_16::Packet;
+    /// # use velodyne::fixtures::VLP_16_DATA_PACKET;
+    /// let packet = Packet::new(&VLP_16_DATA_PACKET).unwrap();
+    /// let sensor = packet.sensor().unwrap();
     /// ```
     pub fn sensor(&self) -> Option<Sensor> {
         match *self {
@@ -188,11 +202,10 @@ impl Packet {
     /// # Examples
     ///
     /// ```
-    /// # use velodyne::Packet;
-    /// let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
-    /// assert!(packet.nmea().is_none());
-    /// let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
-    /// assert!(packet.nmea().is_some());
+    /// # use velodyne::vlp_16::Packet;
+    /// # use velodyne::fixtures::VLP_16_POSITION_PACKET;
+    /// let packet = Packet::new(&VLP_16_POSITION_PACKET).unwrap();
+    /// let nmea = packet.nmea().unwrap();
     /// ```
     pub fn nmea(&self) -> Option<&str> {
         match *self {
@@ -201,17 +214,48 @@ impl Packet {
         }
     }
 
-    fn from_pcap_packet(packet: pcap::Packet) -> Result<Packet> {
-        if packet.data[PACKET_HEADER_LEN..PACKET_HEADER_LEN + 198].iter().all(|&n| n == 0) &&
-           &packet.data[PACKET_HEADER_LEN + 206..PACKET_HEADER_LEN + 212] == b"$GPRMC" {
-            Packet::position_from_pcap_packet(packet)
-        } else {
-            Packet::data_from_pcap_packet(packet)
+    /// Returns the points contained within this data packet.
+    ///
+    /// Returns `None` if this is a position packet.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use velodyne::vlp_16::Packet;
+    /// # use velodyne::fixtures::VLP_16_DATA_PACKET;
+    /// let packet = Packet::new(&VLP_16_DATA_PACKET).unwrap();
+    /// let points = packet.points().unwrap();
+    /// ```
+    pub fn points(&self) -> Option<Vec<Point>> {
+        match *self {
+            Packet::Data { ref data_blocks, timestamp, return_mode, .. } => {
+                let azimuth_model = AzimuthModel::new(**data_blocks);
+                let mut points = Vec::new();
+                for (i, data_block) in data_blocks.iter().enumerate() {
+                    for (j, sequence) in data_block.data_records.iter().enumerate() {
+                        for (channel, data_record) in sequence.iter().enumerate() {
+                            let azimuth = azimuth_model.predict(i, j, channel);
+                            let vertical_angle = vertical_angle(channel);
+                            points.push(Point {
+                                            x: data_record.return_distance * vertical_angle.cos() *
+                                               azimuth.sin(),
+                                            y: data_record.return_distance * vertical_angle.cos() *
+                                               azimuth.cos(),
+                                            z: data_record.return_distance * vertical_angle.sin(),
+                                            reflectivity: data_record.calibrated_reflectivity,
+                                            channel: channel as u8,
+                                        });
+                        }
+                    }
+                }
+                Some(points)
+            }
+            Packet::Position { .. } => None,
         }
     }
 
-    fn position_from_pcap_packet(packet: pcap::Packet) -> Result<Packet> {
-        let mut cursor = Cursor::new(&packet.data[PACKET_HEADER_LEN + 198..]);
+    fn new_position(bytes: &[u8]) -> Result<Packet> {
+        let mut cursor = Cursor::new(&bytes[PACKET_HEADER_LEN + 198..]);
         let timestamp = Duration::microseconds(cursor.read_u32::<LittleEndian>()? as i64);
         let mut nmea = String::new();
         cursor.set_position(8);
@@ -222,9 +266,9 @@ impl Packet {
            })
     }
 
-    fn data_from_pcap_packet(packet: pcap::Packet) -> Result<Packet> {
+    fn new_data(bytes: &[u8]) -> Result<Packet> {
         let mut data_blocks: [DataBlock; NUM_DATA_BLOCKS] = Default::default();
-        let mut cursor = Cursor::new(&packet.data[PACKET_HEADER_LEN..]);
+        let mut cursor = Cursor::new(&bytes[PACKET_HEADER_LEN..]);
         for mut data_block in &mut data_blocks {
             *data_block = DataBlock::read_from(&mut cursor)?;
         }
@@ -290,50 +334,53 @@ impl Sensor {
     }
 }
 
+fn vertical_angle(channel: usize) -> f32 {
+    if channel > 15 {
+        panic!("Channel should never be above 15: {}", channel);
+    }
+    (if channel % 2 == 1 {
+             channel as f32
+         } else {
+             -15. + channel as f32
+         })
+        .to_radians()
+}
+
+struct AzimuthModel {
+    data_blocks: [DataBlock; NUM_DATA_BLOCKS],
+}
+
+impl AzimuthModel {
+    fn new(data_blocks: [DataBlock; NUM_DATA_BLOCKS]) -> AzimuthModel {
+        AzimuthModel { data_blocks: data_blocks }
+    }
+
+    // TODO use channel
+    fn predict(&self, data_block: usize, sequence: usize, _: usize) -> f32 {
+        if sequence == 0 {
+            self.data_blocks[data_block].azimuth
+        } else if data_block != NUM_DATA_BLOCKS - 1 {
+            self.data_blocks[data_block].azimuth
+        } else {
+            self.data_blocks[data_block].azimuth
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use fixtures::{VLP_16_DATA_PACKET, VLP_16_POSITION_PACKET};
 
     #[test]
-    fn read_one_data_packet() {
-        let packets = Packet::from_pcap_path("data/single.pcap").unwrap();
-        assert_eq!(1, packets.len());
+    fn data_packet() {
+        let packet = Packet::new(&VLP_16_DATA_PACKET).unwrap();
+        assert!(packet.is_data());
     }
 
     #[test]
-    fn read_one_position_packet() {
-        let packets = Packet::from_pcap_path("data/position.pcap").unwrap();
-        assert_eq!(1, packets.len());
-    }
-
-    #[test]
-    fn first_data_block() {
-        let data_block = Packet::from_pcap_path("data/single.pcap")
-            .unwrap()
-            .pop()
-            .unwrap()
-            .data_blocks()
-            .unwrap()
-            [0];
-        assert_eq!(229.7, data_block.azimuth);
-        let data_record = data_block.data_records[0][0];
-        assert_eq!(6.524, data_record.return_distance);
-        assert_eq!(4, data_record.calibrated_reflectivity);
-    }
-
-    #[test]
-    fn data_metadata() {
-        let packet = Packet::from_pcap_path("data/single.pcap").unwrap().pop().unwrap();
-        assert_eq!(Duration::microseconds(2467108343), packet.timestamp());
-        assert_eq!(ReturnMode::StrongestReturn, packet.return_mode().unwrap());
-        assert_eq!(Sensor::VLP_16, packet.sensor().unwrap());
-    }
-
-    #[test]
-    fn position() {
-        let packet = Packet::from_pcap_path("data/position.pcap").unwrap().pop().unwrap();
-        assert_eq!(Duration::microseconds(2467110195), packet.timestamp());
-        assert_eq!("$GPRMC,214106,A,3707.8178,N,12139.2690,W,010.3,188.2,230715,013.8,E,D*05",
-                   packet.nmea().unwrap());
+    fn position_packet() {
+        let packet = Packet::new(&VLP_16_POSITION_PACKET).unwrap();
+        assert!(packet.is_position());
     }
 }
