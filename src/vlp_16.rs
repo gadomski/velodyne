@@ -4,6 +4,7 @@ use {Error, Result, Point};
 use byteorder::{ReadBytesExt, LittleEndian};
 use chrono::Duration;
 use nmea::Position;
+use point::Azimuth;
 use std::f32;
 use std::io::{Cursor, Read};
 
@@ -231,21 +232,33 @@ impl Packet {
     pub fn points(&self) -> Option<Vec<Point>> {
         match *self {
             Packet::Data { ref data_blocks, timestamp, return_mode, .. } => {
+                if return_mode == ReturnMode::DualReturn {
+                    unimplemented!()
+                }
                 let azimuth_model = AzimuthModel::new(**data_blocks);
                 let mut points = Vec::new();
                 for (i, data_block) in data_blocks.iter().enumerate() {
                     for (j, sequence) in data_block.data_records.iter().enumerate() {
                         for (channel, data_record) in sequence.iter().enumerate() {
-                            let azimuth = azimuth_model.predict(i, j, channel).to_radians();
+                            let azimuth = azimuth_model.predict(i, j, channel);
+                            let azimuth_rad = azimuth.to_radians();
+                            let azimuth = if j == 0 && channel == 0 {
+                                Azimuth::Measured(azimuth)
+                            } else if i < NUM_DATA_BLOCKS - 1 {
+                                Azimuth::Interpolated(azimuth)
+                            } else {
+                                Azimuth::Extrapolated(azimuth)
+                            };
                             let vertical_angle = vertical_angle(channel).to_radians();
                             points.push(Point {
                                             x: data_record.return_distance * vertical_angle.cos() *
-                                               azimuth.sin(),
+                                               azimuth_rad.sin(),
                                             y: data_record.return_distance * vertical_angle.cos() *
-                                               azimuth.cos(),
+                                               azimuth_rad.cos(),
                                             z: data_record.return_distance * vertical_angle.sin(),
                                             reflectivity: data_record.calibrated_reflectivity,
                                             channel: channel as u8,
+                                            azimuth: azimuth,
                                         });
                         }
                     }

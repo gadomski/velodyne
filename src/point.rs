@@ -14,9 +14,10 @@ pub struct Point {
     /// The calibrated reflectivity of the point.
     pub reflectivity: u8,
     /// The laser channel.
-    pub channel: u8, 
+    pub channel: u8,
     //return_type: ReturnType,
-    //azimuth: Azimuth,
+    /// The azimuth measurement.
+    pub azimuth: Azimuth, 
     //time: Time,
 }
 
@@ -38,9 +39,11 @@ pub enum ReturnType {
 #[derive(Clone, Copy, Debug)]
 pub enum Azimuth {
     /// The azimuth was provided as part of the data packet.
-    Measured,
+    Measured(f32),
     /// The azimuth was interpolated.
-    Interpolated,
+    Interpolated(f32),
+    /// The azimuth was extrapolated.
+    Extrapolated(f32),
 }
 
 /// The type of time measurement.
