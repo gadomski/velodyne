@@ -13,6 +13,8 @@ const NUM_LASERS: usize = 16;
 const NUM_DATA_BLOCKS: usize = 12;
 const PACKET_HEADER_LEN: usize = 42;
 const START_IDENTIFIER: u16 = 0xeeff;
+const DATA_BLOCK_RATE_US: f32 = 55.296;
+const FIRING_RATE_US: f32 = 2.304;
 
 /// A Velodyne information packet.
 #[derive(Clone, Debug)]
@@ -234,8 +236,8 @@ impl Packet {
                 for (i, data_block) in data_blocks.iter().enumerate() {
                     for (j, sequence) in data_block.data_records.iter().enumerate() {
                         for (channel, data_record) in sequence.iter().enumerate() {
-                            let azimuth = azimuth_model.predict(i, j, channel);
-                            let vertical_angle = vertical_angle(channel);
+                            let azimuth = azimuth_model.predict(i, j, channel).to_radians();
+                            let vertical_angle = vertical_angle(channel).to_radians();
                             points.push(Point {
                                             x: data_record.return_distance * vertical_angle.cos() *
                                                azimuth.sin(),
@@ -335,15 +337,12 @@ impl Sensor {
 }
 
 fn vertical_angle(channel: usize) -> f32 {
-    if channel > 15 {
-        panic!("Channel should never be above 15: {}", channel);
+    assert!(channel < 16);
+    if channel % 2 == 1 {
+        channel as f32
+    } else {
+        -15. + channel as f32
     }
-    (if channel % 2 == 1 {
-             channel as f32
-         } else {
-             -15. + channel as f32
-         })
-        .to_radians()
 }
 
 struct AzimuthModel {
@@ -356,19 +355,14 @@ impl AzimuthModel {
     }
 
     fn predict(&self, data_block: usize, sequence: usize, channel: usize) -> f32 {
-        if data_block != NUM_DATA_BLOCKS - 1 {
-            self.interpolate(data_block, sequence, channel)
+        let base_azimuth = self.data_blocks[data_block].azimuth;
+        if data_block < NUM_DATA_BLOCKS - 1 {
+            let rate = (self.data_blocks[data_block + 1].azimuth - base_azimuth) /
+                       DATA_BLOCK_RATE_US;
+            ((base_azimuth + rate * channel as f32 * FIRING_RATE_US) * 100.).round() / 100.
         } else {
-            self.extrapolate(data_block, sequence, channel)
+            base_azimuth
         }
-    }
-
-    fn interpolate(&self, data_block: usize, sequence: usize, channel: usize) -> f32 {
-        unimplemented!()
-    }
-
-    fn extrapolate(&self, data_block: usize, sequence: usize, channel: usize) -> f32 {
-        unimplemented!()
     }
 }
 
@@ -420,5 +414,14 @@ mod tests {
         let packet = Packet::new(&VLP_16_DATA_PACKET).unwrap();
         assert_eq!(ReturnMode::StrongestReturn, packet.return_mode().unwrap());
         assert_eq!(Sensor::VLP_16, packet.sensor().unwrap());
+    }
+
+    #[test]
+    fn azimuth_model() {
+        let packet = Packet::new(&VLP_16_DATA_PACKET).unwrap();
+        let azimuth_model = AzimuthModel::new(packet.data_blocks().unwrap());
+        assert_eq!(229.70, azimuth_model.predict(0, 0, 0));
+        assert_eq!(229.72, azimuth_model.predict(0, 0, 1));
+        assert_eq!(234.08, azimuth_model.predict(11, 0, 0));
     }
 }
