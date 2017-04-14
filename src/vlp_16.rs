@@ -388,15 +388,28 @@ impl AzimuthModel {
     }
 
     fn predict(&self, data_block: usize, sequence: usize, channel: usize) -> f32 {
-        let base_azimuth = self.data_blocks[data_block].azimuth;
+        let mut base_azimuth = self.data_blocks[data_block].azimuth;
         let rate = if data_block < NUM_DATA_BLOCKS - 1 {
-            (self.data_blocks[data_block + 1].azimuth - base_azimuth) / FIRING_CYCLE_RATE_US / 2.
+            let mut other_azimuth = self.data_blocks[data_block + 1].azimuth;
+            if other_azimuth < base_azimuth {
+                other_azimuth += 360.
+            }
+            (other_azimuth - base_azimuth) / FIRING_CYCLE_RATE_US / 2.
         } else {
-            (base_azimuth - self.data_blocks[data_block - 1].azimuth) / FIRING_CYCLE_RATE_US / 2.
+            let other_azimuth = self.data_blocks[data_block - 1].azimuth;
+            if other_azimuth > base_azimuth {
+                base_azimuth += 360.;
+            }
+            (base_azimuth - other_azimuth) / FIRING_CYCLE_RATE_US / 2.
         };
-        ((base_azimuth + rate * sequence as f32 * FIRING_CYCLE_RATE_US +
-          rate * channel as f32 * FIRING_RATE_US) * 100.)
-                .round() / 100.
+        let azimuth = ((base_azimuth + rate * sequence as f32 * FIRING_CYCLE_RATE_US +
+                        rate * channel as f32 * FIRING_RATE_US) * 100.)
+                .round() / 100.;
+        if azimuth > 360. {
+            azimuth - 360.
+        } else {
+            azimuth
+        }
     }
 }
 
