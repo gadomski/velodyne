@@ -414,4 +414,11 @@ mod tests {
         let packet = Packet::new(&VLP_16_POSITION_PACKET).unwrap();
         assert_eq!(Duration::microseconds(2_467_110_195), packet.timestamp());
     }
+
+    #[test]
+    fn factory_byte() {
+        let packet = Packet::new(&VLP_16_DATA_PACKET).unwrap();
+        assert_eq!(ReturnMode::StrongestReturn, packet.return_mode().unwrap());
+        assert_eq!(Sensor::VLP_16, packet.sensor().unwrap());
+    }
 }
