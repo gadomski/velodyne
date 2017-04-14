@@ -378,6 +378,12 @@ fn vertical_angle(channel: usize) -> f32 {
     }
 }
 
+fn time_offset(data_block: usize, sequence: usize, channel: usize) -> Duration {
+    let nanoseconds = ((data_block * 2 + sequence) as f32 * FIRING_CYCLE_RATE_US +
+                       channel as f32 * FIRING_RATE_US) * 1000.;
+    Duration::nanoseconds(nanoseconds.round() as i64)
+}
+
 struct AzimuthModel {
     data_blocks: [DataBlock; NUM_DATA_BLOCKS],
 }
@@ -480,5 +486,11 @@ mod tests {
         let packet = Packet::new(&VLP_16_POSITION_PACKET).unwrap();
         assert_eq!("$GPRMC,214106,A,3707.8178,N,12139.2690,W,010.3,188.2,230715,013.8,E,D*05",
                    packet.nmea().unwrap());
+    }
+
+    #[test]
+    fn time_offset_examples() {
+        assert_eq!(Duration::nanoseconds(389_376), time_offset(3, 1, 1));
+        assert_eq!(Duration::nanoseconds(1_306_368), time_offset(11, 1, 15));
     }
 }
