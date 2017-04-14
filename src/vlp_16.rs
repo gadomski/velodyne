@@ -406,4 +406,12 @@ mod tests {
         assert_eq!(51.470, data_record.return_distance);
         assert_eq!(9, data_record.calibrated_reflectivity);
     }
+
+    #[test]
+    fn timestamp() {
+        let packet = Packet::new(&VLP_16_DATA_PACKET).unwrap();
+        assert_eq!(Duration::microseconds(2_467_108_343), packet.timestamp());
+        let packet = Packet::new(&VLP_16_POSITION_PACKET).unwrap();
+        assert_eq!(Duration::microseconds(2_467_110_195), packet.timestamp());
+    }
 }
