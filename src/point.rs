@@ -18,8 +18,9 @@ pub struct Point {
     /// The type of return.
     pub return_type: ReturnType,
     /// The azimuth measurement.
-    pub azimuth: Azimuth, 
-    //time: Time,
+    pub azimuth: Azimuth,
+    /// The time of the point.
+    pub time: Time,
 }
 
 /// The type of laser return.

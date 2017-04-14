@@ -4,7 +4,7 @@ use {Error, Result, Point};
 use byteorder::{ReadBytesExt, LittleEndian};
 use chrono::Duration;
 use nmea::Position;
-use point::{Azimuth, ReturnType};
+use point::{Azimuth, ReturnType, Time};
 use std::f32;
 use std::io::{Cursor, Read};
 
@@ -265,6 +265,8 @@ impl Packet {
                                             channel: channel as u8,
                                             azimuth: azimuth,
                                             return_type: return_type,
+                                            time: Time::Offset(timestamp +
+                                                               time_offset(i, j, channel)),
                                         });
                         }
                     }
