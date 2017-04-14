@@ -3,6 +3,7 @@
 use {Error, Result, Point};
 use byteorder::{ReadBytesExt, LittleEndian};
 use chrono::Duration;
+use io::Read as VelodyneRead;
 use nmea::Position;
 use point::{Azimuth, ReturnType, Time};
 use std::f32;
@@ -88,6 +89,12 @@ pub enum Sensor {
     HDL_32E,
     /// VLP-16.
     VLP_16,
+}
+
+/// An iterator over VLP-16 packets.
+#[derive(Clone, Copy, Debug)]
+pub struct Packets<R: VelodyneRead> {
+    read: R,
 }
 
 impl Packet {
@@ -368,6 +375,20 @@ impl Sensor {
             0x22 => Ok(Sensor::VLP_16),
             _ => Err(Error::InvalidSensor(n)),
         }
+    }
+}
+
+impl<R: VelodyneRead> Packets<R> {
+    /// Creates a new packets iterator.
+    pub fn new(read: R) -> Packets<R> {
+        Packets { read: read }
+    }
+}
+
+impl<R: VelodyneRead> Iterator for Packets<R> {
+    type Item = Result<Packet>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.read.read().map(|result| result.and_then(|bytes| Packet::new(bytes)))
     }
 }
 

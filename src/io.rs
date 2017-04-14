@@ -3,6 +3,7 @@
 use Result;
 use pcap::{self, Capture, Offline};
 use std::path::Path;
+use vlp_16::Packets as Vlp16Packets;
 
 /// A trait for things that can produce Velodyne packets.
 pub trait Read {
@@ -18,6 +19,23 @@ pub trait Read {
     /// let bytes = pcap.read().unwrap().unwrap();
     /// ```
     fn read(&mut self) -> Option<Result<&[u8]>>;
+
+    /// Returns an iterator over VLP-16 packets.
+    ///
+    /// # Examples
+    ///
+    /// `Pcap` implements `Read`:
+    ///
+    /// ```
+    /// # use velodyne::io::{Pcap, Read};
+    /// let mut pcap = Pcap::open("data/single.pcap").unwrap();
+    /// let packets = pcap.vlp_16_packets();
+    /// ```
+    fn vlp_16_packets(self) -> Vlp16Packets<Self>
+        where Self: Sized
+    {
+        Vlp16Packets::new(self)
+    }
 }
 
 /// Reads Velodyne data from pcap files.
