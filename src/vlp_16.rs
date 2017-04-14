@@ -355,15 +355,20 @@ impl AzimuthModel {
         AzimuthModel { data_blocks: data_blocks }
     }
 
-    // TODO use channel
-    fn predict(&self, data_block: usize, sequence: usize, _: usize) -> f32 {
-        if sequence == 0 {
-            self.data_blocks[data_block].azimuth
-        } else if data_block != NUM_DATA_BLOCKS - 1 {
-            self.data_blocks[data_block].azimuth
+    fn predict(&self, data_block: usize, sequence: usize, channel: usize) -> f32 {
+        if data_block != NUM_DATA_BLOCKS - 1 {
+            self.interpolate(data_block, sequence, channel)
         } else {
-            self.data_blocks[data_block].azimuth
+            self.extrapolate(data_block, sequence, channel)
         }
+    }
+
+    fn interpolate(&self, data_block: usize, sequence: usize, channel: usize) -> f32 {
+        unimplemented!()
+    }
+
+    fn extrapolate(&self, data_block: usize, sequence: usize, channel: usize) -> f32 {
+        unimplemented!()
     }
 }
 
@@ -382,5 +387,12 @@ mod tests {
     fn position_packet() {
         let packet = Packet::new(&VLP_16_POSITION_PACKET).unwrap();
         assert!(packet.is_position());
+    }
+
+    #[test]
+    fn azimuth() {
+        let data_blocks = Packet::new(&VLP_16_DATA_PACKET).unwrap().data_blocks().unwrap();
+        assert_eq!(229.70, data_blocks[0].azimuth);
+        assert_eq!(234.08, data_blocks[11].azimuth);
     }
 }
