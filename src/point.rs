@@ -15,7 +15,8 @@ pub struct Point {
     pub reflectivity: u8,
     /// The laser channel.
     pub channel: u8,
-    //return_type: ReturnType,
+    /// The type of return.
+    pub return_type: ReturnType,
     /// The azimuth measurement.
     pub azimuth: Azimuth, 
     //time: Time,

@@ -4,7 +4,7 @@ use {Error, Result, Point};
 use byteorder::{ReadBytesExt, LittleEndian};
 use chrono::Duration;
 use nmea::Position;
-use point::Azimuth;
+use point::{Azimuth, ReturnType};
 use std::f32;
 use std::io::{Cursor, Read};
 
@@ -250,6 +250,11 @@ impl Packet {
                                 Azimuth::Extrapolated(azimuth)
                             };
                             let vertical_angle = vertical_angle(channel).to_radians();
+                            let return_type = match return_mode {
+                                ReturnMode::StrongestReturn => ReturnType::Strongest,
+                                ReturnMode::LastReturn => ReturnType::Last,
+                                ReturnMode::DualReturn => unimplemented!(),
+                            };
                             points.push(Point {
                                             x: data_record.return_distance * vertical_angle.cos() *
                                                azimuth_rad.sin(),
@@ -259,6 +264,7 @@ impl Packet {
                                             reflectivity: data_record.calibrated_reflectivity,
                                             channel: channel as u8,
                                             azimuth: azimuth,
+                                            return_type: return_type,
                                         });
                         }
                     }
