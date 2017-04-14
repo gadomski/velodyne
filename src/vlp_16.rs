@@ -261,6 +261,7 @@ impl Packet {
     /// # Examples
     ///
     /// ```
+    /// # use velodyne::vlp_16::Packet;
     /// # use velodyne::fixtures::VLP_16_POSITION_PACKET;
     /// let packet = Packet::new(&VLP_16_POSITION_PACKET).unwrap();
     /// let position = packet.position().unwrap().unwrap();
