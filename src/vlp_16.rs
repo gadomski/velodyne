@@ -3,7 +3,7 @@
 use {Error, Result, Point};
 use byteorder::{ReadBytesExt, LittleEndian};
 use chrono::Duration;
-use point::{Azimuth, Time, ReturnType};
+use nmea::Position;
 use std::f32;
 use std::io::{Cursor, Read};
 
@@ -256,6 +256,19 @@ impl Packet {
         }
     }
 
+    /// Returns the position as specified by the NMEA string, or none if this is a data packet.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use velodyne::fixtures::VLP_16_POSITION_PACKET;
+    /// let packet = Packet::new(&VLP_16_POSITION_PACKET).unwrap();
+    /// let position = packet.position().unwrap().unwrap();
+    /// ```
+    pub fn position(&self) -> Option<Result<Position>> {
+        self.nmea().map(|nmea| Position::new(nmea))
+    }
+
     fn new_position(bytes: &[u8]) -> Result<Packet> {
         let mut cursor = Cursor::new(&bytes[PACKET_HEADER_LEN + 198..]);
         let timestamp = Duration::microseconds(cursor.read_u32::<LittleEndian>()? as i64);
@@ -427,5 +440,12 @@ mod tests {
         assert_eq!(234.00, azimuth_model.predict(10, 1, 15));
         assert_eq!(234.08, azimuth_model.predict(11, 0, 0));
         assert_eq!(234.09, azimuth_model.predict(11, 0, 1));
+    }
+
+    #[test]
+    fn nmea() {
+        let packet = Packet::new(&VLP_16_POSITION_PACKET).unwrap();
+        assert_eq!("$GPRMC,214106,A,3707.8178,N,12139.2690,W,010.3,188.2,230715,013.8,E,D*05",
+                   packet.nmea().unwrap());
     }
 }

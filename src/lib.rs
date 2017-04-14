@@ -13,16 +13,19 @@ extern crate byteorder;
 extern crate chrono;
 extern crate pcap;
 
-pub mod vlp_16;
-pub mod io;
 pub mod fixtures;
+pub mod io;
+pub mod nmea;
 pub mod point;
+pub mod vlp_16;
 
 pub use point::Point;
 
 /// Our crate-specific error enum.
 #[derive(Debug)]
 pub enum Error {
+    /// Wrapper around `chrono::ParseError`.
+    ChronoParse(chrono::ParseError),
     /// Invalid sensor code.
     InvalidSensor(u8),
     /// Invalid start identifier for a data block.
@@ -31,6 +34,10 @@ pub enum Error {
     InvalidReturnMode(u8),
     /// Wrapper around `std::io::Error`.
     Io(std::io::Error),
+    /// Something went wrong when parsing a NMEA string.
+    Nmea(String),
+    /// Wrapper around `std::num::ParseFloatError`.
+    ParseFloat(std::num::ParseFloatError),
     /// Wrapper around `pcap::Error`.
     Pcap(pcap::Error),
 }
@@ -38,6 +45,18 @@ pub enum Error {
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Error {
         Error::Io(err)
+    }
+}
+
+impl From<std::num::ParseFloatError> for Error {
+    fn from(err: std::num::ParseFloatError) -> Error {
+        Error::ParseFloat(err)
+    }
+}
+
+impl From<chrono::ParseError> for Error {
+    fn from(err: chrono::ParseError) -> Error {
+        Error::ChronoParse(err)
     }
 }
 
