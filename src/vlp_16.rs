@@ -356,13 +356,14 @@ impl AzimuthModel {
 
     fn predict(&self, data_block: usize, sequence: usize, channel: usize) -> f32 {
         let base_azimuth = self.data_blocks[data_block].azimuth;
-        if data_block < NUM_DATA_BLOCKS - 1 {
-            let rate = (self.data_blocks[data_block + 1].azimuth - base_azimuth) /
-                       DATA_BLOCK_RATE_US;
-            ((base_azimuth + rate * channel as f32 * FIRING_RATE_US) * 100.).round() / 100.
+        let rate = if data_block < NUM_DATA_BLOCKS - 1 {
+            (self.data_blocks[data_block + 1].azimuth - base_azimuth) / DATA_BLOCK_RATE_US / 2.
         } else {
-            base_azimuth
-        }
+            0.
+        };
+        ((base_azimuth + rate * sequence as f32 * DATA_BLOCK_RATE_US +
+          rate * channel as f32 * FIRING_RATE_US) * 100.)
+                .round() / 100.
     }
 }
 
@@ -421,7 +422,8 @@ mod tests {
         let packet = Packet::new(&VLP_16_DATA_PACKET).unwrap();
         let azimuth_model = AzimuthModel::new(packet.data_blocks().unwrap());
         assert_eq!(229.70, azimuth_model.predict(0, 0, 0));
-        assert_eq!(229.72, azimuth_model.predict(0, 0, 1));
+        assert_eq!(229.71, azimuth_model.predict(0, 0, 1));
+        assert_eq!(229.89, azimuth_model.predict(0, 1, 0));
         assert_eq!(234.08, azimuth_model.predict(11, 0, 0));
     }
 }
