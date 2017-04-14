@@ -395,4 +395,15 @@ mod tests {
         assert_eq!(229.70, data_blocks[0].azimuth);
         assert_eq!(234.08, data_blocks[11].azimuth);
     }
+
+    #[test]
+    fn data_record() {
+        let data_blocks = Packet::new(&VLP_16_DATA_PACKET).unwrap().data_blocks().unwrap();
+        let data_record = data_blocks[0].data_records[0][0];
+        assert_eq!(6.524, data_record.return_distance);
+        assert_eq!(4, data_record.calibrated_reflectivity);
+        let data_record = data_blocks[11].data_records[1][12];
+        assert_eq!(51.470, data_record.return_distance);
+        assert_eq!(9, data_record.calibrated_reflectivity);
+    }
 }
