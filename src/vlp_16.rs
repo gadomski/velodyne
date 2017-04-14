@@ -13,7 +13,7 @@ const NUM_LASERS: usize = 16;
 const NUM_DATA_BLOCKS: usize = 12;
 const PACKET_HEADER_LEN: usize = 42;
 const START_IDENTIFIER: u16 = 0xeeff;
-const DATA_BLOCK_RATE_US: f32 = 55.296;
+const FIRING_CYCLE_RATE_US: f32 = 55.296;
 const FIRING_RATE_US: f32 = 2.304;
 
 /// A Velodyne information packet.
@@ -357,11 +357,11 @@ impl AzimuthModel {
     fn predict(&self, data_block: usize, sequence: usize, channel: usize) -> f32 {
         let base_azimuth = self.data_blocks[data_block].azimuth;
         let rate = if data_block < NUM_DATA_BLOCKS - 1 {
-            (self.data_blocks[data_block + 1].azimuth - base_azimuth) / DATA_BLOCK_RATE_US / 2.
+            (self.data_blocks[data_block + 1].azimuth - base_azimuth) / FIRING_CYCLE_RATE_US / 2.
         } else {
-            (base_azimuth - self.data_blocks[data_block - 1].azimuth) / DATA_BLOCK_RATE_US / 2.
+            (base_azimuth - self.data_blocks[data_block - 1].azimuth) / FIRING_CYCLE_RATE_US / 2.
         };
-        ((base_azimuth + rate * sequence as f32 * DATA_BLOCK_RATE_US +
+        ((base_azimuth + rate * sequence as f32 * FIRING_CYCLE_RATE_US +
           rate * channel as f32 * FIRING_RATE_US) * 100.)
                 .round() / 100.
     }
